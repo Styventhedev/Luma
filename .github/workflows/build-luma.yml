@@ -41,15 +41,23 @@ jobs:
           SETUP=$(find "$HOME/oo" -maxdepth 4 -name 'setup-toolchain.sh' | head -n1)
           if [ -n "$SETUP" ]; then bash "$SETUP" || true; fi
 
-      # A VERIFIER : Luma a peut-etre besoin du GoldHEN Plugins SDK.
-      # L'etape ne bloque pas le build si elle echoue.
-      - name: GoldHEN Plugins SDK (si necessaire)
-        continue-on-error: true
+      # Luma a besoin du GoldHEN Plugins SDK (confirme par le journal du 1er essai) :
+      # il faut le compiler puis copier crtprx.o, libGoldHEN_Hook.a et les en-tetes
+      # dans la chaine OpenOrbis.
+      - name: GoldHEN Plugins SDK
         run: |
           git clone --depth 1 https://github.com/GoldHEN/GoldHEN_Plugins_SDK "$HOME/ghsdk"
           cd "$HOME/ghsdk"
           make
           echo "GOLDHEN_SDK=$HOME/ghsdk" >> "$GITHUB_ENV"
+          echo "--- Fichiers produits ---"
+          find . -name 'crtprx.o' -o -name 'libGoldHEN_Hook.a'
+          CRT=$(find . -name 'crtprx.o' | head -n1)
+          HOOK=$(find . -name 'libGoldHEN_Hook.a' | head -n1)
+          test -n "$CRT" && test -n "$HOOK"
+          mkdir -p "$OO_PS4_TOOLCHAIN/lib" "$OO_PS4_TOOLCHAIN/include/GoldHEN"
+          cp "$CRT" "$HOOK" "$OO_PS4_TOOLCHAIN/lib/"
+          cp -r include/* "$OO_PS4_TOOLCHAIN/include/GoldHEN/"
 
       - name: Compiler Luma
         run: |
