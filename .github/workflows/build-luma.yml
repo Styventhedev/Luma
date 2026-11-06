@@ -1,0 +1,68 @@
+# Compile Luma.prx sur les serveurs gratuits de GitHub (pas besoin de WSL ni de RAM).
+# NON TESTE : ecrit sans pouvoir l'executer. Si une etape echoue, copie le journal
+# de l'etape en erreur et envoie-le moi.
+#
+# A placer dans TON fork du depot Luma, au chemin :
+#   .github/workflows/build-luma.yml
+# Puis : onglet Actions > "Build Luma.prx" > Run workflow.
+# Resultat : un artefact "Luma-prx" a telecharger en bas de la page du run.
+
+name: Build Luma.prx
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependances systeme
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld cmake make python3 git
+
+      - name: Telecharger la chaine OpenOrbis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/oo"
+          cd "$HOME/oo"
+          gh release download --repo OpenOrbis/OpenOrbis-PS4-Toolchain --pattern '*.tar.gz'
+          ls -la
+          for f in *.tar.gz; do tar -xzf "$f"; done
+          TC=$(find "$HOME/oo" -maxdepth 3 -type d -name 'PS4Toolchain' | head -n1)
+          echo "Chaine trouvee : $TC"
+          test -n "$TC"
+          echo "OO_PS4_TOOLCHAIN=$TC" >> "$GITHUB_ENV"
+          # Rend les binaires Linux executables (equivalent de setup-toolchain.sh)
+          chmod -R +x "$TC/bin/linux" || true
+          SETUP=$(find "$HOME/oo" -maxdepth 4 -name 'setup-toolchain.sh' | head -n1)
+          if [ -n "$SETUP" ]; then bash "$SETUP" || true; fi
+
+      # A VERIFIER : Luma a peut-etre besoin du GoldHEN Plugins SDK.
+      # L'etape ne bloque pas le build si elle echoue.
+      - name: GoldHEN Plugins SDK (si necessaire)
+        continue-on-error: true
+        run: |
+          git clone --depth 1 https://github.com/GoldHEN/GoldHEN_Plugins_SDK "$HOME/ghsdk"
+          cd "$HOME/ghsdk"
+          make
+          echo "GOLDHEN_SDK=$HOME/ghsdk" >> "$GITHUB_ENV"
+
+      - name: Compiler Luma
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Tests du depot (facultatif)
+        continue-on-error: true
+        run: bash tests/run.sh
+
+      - name: Publier Luma.prx
+        uses: actions/upload-artifact@v4
+        with:
+          name: Luma-prx
+          path: build/Luma.prx
+          if-no-files-found: error
