@@ -21,7 +21,7 @@ jobs:
       - name: Dependances systeme
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld cmake make python3 git
+          sudo apt-get install -y clang lld llvm cmake make python3 git
 
       - name: Telecharger la chaine OpenOrbis
         env:
